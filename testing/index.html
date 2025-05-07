@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS Chat App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7.22.9/babel.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="root"></div>
+    <script type="text/babel">
+        // Simulated Groq client for demo purposes
+        class MockGroqClient {
+            constructor(apiKey) {
+                this.apiKey = apiKey;
+            }
+
+            chat = {
+                completions: {
+                    create: async ({ model, messages }) => {
+                        // Simulate Groq API response
+                        const lastMessage = messages[messages.length - 1].content;
+                        return {
+                            choices: [
+                                {
+                                    message: {
+                                        content: `JARVIS: Echoing your input - "${lastMessage}". How can I assist you further?`
+                                    }
+                                }
+                            ]
+                        };
+                    }
+                }
+            };
+        }
+
+        // Simulated config
+        const GROQ_API_KEY = "mock-api-key";
+        const MODEL = "mock-model";
+
+        // Simulated intent detection
+        function detectIntent(input) {
+            if (input.toLowerCase().includes("open")) {
+                return `JARVIS: Simulating opening an app for "${input}"`;
+            }
+            if (input.toLowerCase().includes("time")) {
+                return `JARVIS: The current time is ${new Date().toLocaleTimeString()}`;
+            }
+            return null;
+        }
+
+        // Chat logic adapted from provided code
+        const client = new MockGroqClient(GROQ_API_KEY);
+        const MAX_MESSAGES = 15;
+        let messages = [
+            {
+                role: "system",
+                content: (
+                    "You are JARVIS, an intelligent and loyal voice assistant built by Keyur. " +
+                    "You assist with tasks, answer questions, open applications, search things online, and keep responses friendly and helpful. " +
+                    "Always respond like a real assistant would, and ask for clarification if unsure."
+                )
+            }
+        ];
+
+        function trimMessages() {
+            if (messages.length > MAX_MESSAGES) {
+                messages.splice(1, 2); // Keep system + recent turns
+            }
+        }
+
+        async function chatWithGroq(userInput) {
+            const intentResult = detectIntent(userInput);
+            if (intentResult) {
+                messages.push({ role: "user", content: userInput });
+                messages.push({ role: "assistant", content: intentResult });
+                return intentResult;
+            }
+
+            messages.push({ role: "user", content: userInput });
+            trimMessages();
+
+            const response = await client.chat.completions.create({
+                model: MODEL,
+                messages,
+            });
+
+            const reply = response.choices[0].message.content;
+            messages.push({ role: "assistant", content: reply });
+            return reply;
+        }
+
+        // React Chat Component
+        function ChatApp() {
+            const [input, setInput] = React.useState("");
+            const [chatHistory, setChatHistory] = React.useState([]);
+            const messagesEndRef = React.useRef(null);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!input.trim()) return;
+
+                const userMessage = { role: "user", content: input };
+                setChatHistory((prev) => [...prev, userMessage]);
+
+                const reply = await chatWithGroq(input);
+                const assistantMessage = { role: "assistant", content: reply };
+                setChatHistory((prev) => [...prev, assistantMessage]);
+
+                setInput("");
+            };
+
+            React.useEffect(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, [chatHistory]);
+
+            return (
+                <div className="max-w-2xl mx-auto p-4 h-screen flex flex-col">
+                    <h1 className="text-3xl font-bold text-center mb-4">JARVIS Assistant</h1>
+                    <div className="flex-1 overflow-y-auto bg-gray-800 rounded-lg p-4 mb-4">
+                        {chatHistory.map((msg, index) => (
+                            <div
+                                key={index}
+                                className={`mb-2 ${
+                                    msg.role === "user" ? "text-right" : "text-left"
+                                }`}
+                            >
+                                <span
+                                    className={`inline-block p-2 rounded-lg ${
+                                        msg.role === "user"
+                                            ? "bg-blue-600"
+                                            : "bg-gray-700"
+                                    }`}
+                                >
+                                    {msg.content}
+                                </span>
+                            </div>
+                        ))}
+                        <div ref={messagesEndRef} />
+                    </div>
+                    <form onSubmit={handleSubmit} className="flex gap-2">
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder="Ask JARVIS something..."
+                            className="flex-1 p-2 rounded-lg bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                            type="submit"
+                            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700"
+                        >
+                            Send
+                        </button>
+                    </form>
+                </div>
+            );
+        }
+
+        // Render the app
+        ReactDOM.render(<ChatApp />, document.getElementById("root"));
+    </script>
+</body>
+</html>
